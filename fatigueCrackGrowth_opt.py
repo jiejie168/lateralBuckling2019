@@ -47,11 +47,12 @@ class FatigueCrackGrowth():
             std_eqv=pdf_inv/pdf_x1
             mu_eqv=x1-cdf_inv*std_eqv
             return (mu_eqv,std_eqv)
+
     def fun_opt(self,Kic,xiegama,ai,c):
         af=(Kic/(1.1215*xiegama))**2/np.pi
         frac=af**(1-self.m/2)-ai**(1-self.m/2)
         denomi=c*(1.1215*xiegama)**self.m*np.pi**(self.m/2)*(1-self.m/2)
-        limit_state=self.Nc-frac/denomi
+        limit_state=-self.Nc+frac/denomi
         return limit_state
 
     def limitState_1stDeriv(self):
@@ -61,7 +62,7 @@ class FatigueCrackGrowth():
         frac=af**(1-self.m/2)-ai**(1-self.m/2)
         denomi=c*(1.1215*xiegama)**self.m*np.pi**(self.m/2)*(1-self.m/2)
         Nf=frac/denomi
-        N_lim=self.Nc-Nf
+        N_lim=-self.Nc+Nf
         xiegama_prime=N_lim.diff(xiegama)
         Kic_prime=N_lim.diff(Kic)
         ai_prime=N_lim.diff(ai)
@@ -86,32 +87,33 @@ class FatigueCrackGrowth():
         ## obtain the new design point X2. The first beta calculation is due to original definition
 
         #### transform the equivelant mus and xiegamas in the standard normal distribution.
-        mu_xiegama_eqv,std_xiegama_eqv=self.lognormToGauss(self.mu_xiegama,self.std_xiegama,self.mu_xiegama)
+        mu_xiegama_eqv,std_xiegama_eqv=self.lognormToGauss(self.mu_xiegama,self.std_xiegama,self.mu_xiegama)  # mu_k is used for the first iterative
         mu_Kic_eqv,std_Kic_eqv=self.lognormToGauss(self.mu_Kic,self.std_Kic,self.mu_Kic)
         mu_ai_eqv,std_ai_eqv=self.lognormToGauss(self.mu_a,self.std_a,self.mu_a)
         mu_c_eqv,std_c_eqv=self.lognormToGauss(self.mu_c,self.std_c,self.mu_c)
 
         # compute the first iteration
-        mu_g=self.fun_opt(self.mu_Kic,self.mu_xiegama,self.mu_a,self.mu_c)  # the mu_P should not be updated in the first iteration
-        N_lim_value,xiegama_prime_value ,Kic_prime_value,ai_prime_value,c_prime_value=self.limitState_1stDeriv_value(self.mu_Kic,self.mu_xiegama,self.mu_a,self.mu_c)
+        # mu_g=self.fun_opt(self.mu_Kic,self.mu_xiegama,self.mu_a,self.mu_c)  # the mu_P should not be updated in the first iteration
+        mu_g=self.fun_opt(mu_Kic_eqv,mu_xiegama_eqv,mu_ai_eqv,mu_c_eqv)
+        N_lim_value,xiegama_prime_value ,Kic_prime_value,ai_prime_value,c_prime_value=self.limitState_1stDeriv_value(mu_Kic_eqv,mu_xiegama_eqv,mu_ai_eqv,mu_c_eqv)
         N_lim_value,xiegama_prime_value ,Kic_prime_value,ai_prime_value,c_prime_value=float(N_lim_value),float(xiegama_prime_value),\
                                                                                       float(Kic_prime_value),float(ai_prime_value),float(c_prime_value)
-        std_g=np.sqrt(xiegama_prime_value**2+Kic_prime_value**2+ai_prime_value**2+c_prime_value**2)
+        std_g=np.sqrt((xiegama_prime_value*std_xiegama_eqv)**2+(Kic_prime_value*std_Kic_eqv)**2+(ai_prime_value*std_ai_eqv)**2+(c_prime_value*std_c_eqv)**2)
 
         beta_init=mu_g/std_g
-        cos_alpha1=-xiegama_prime_value*self.std_xiegama/std_g
-        cos_alpha2=-Kic_prime_value*self.std_Kic/std_g
-        cos_alpha3=-ai_prime_value*self.std_a/std_g
-        cos_alpha4=-c_prime_value*self.std_c/std_g
+        cos_alpha1=-xiegama_prime_value*std_xiegama_eqv/std_g
+        cos_alpha2=-Kic_prime_value*std_Kic_eqv/std_g
+        cos_alpha3=-ai_prime_value*std_ai_eqv/std_g
+        cos_alpha4=-c_prime_value*std_c_eqv/std_g
 
-        xiegama_init=self.mu_xiegama+beta_init*self.std_xiegama*cos_alpha1
-        Kic_init=self.mu_Kic+beta_init*self.std_Kic*cos_alpha2
-        ai_init=self.mu_a+beta_init*self.std_a*cos_alpha3
-        c_init=self.mu_c+beta_init*self.std_c*cos_alpha4
-        uxiegama_init=(xiegama_init-self.mu_xiegama)/self.std_xiegama
-        uKic_init=(Kic_init-self.mu_Kic)/self.std_Kic
-        uai_init=(ai_init-self.mu_a)/self.std_a
-        uc_init=(c_init-self.mu_c)/self.std_c
+        xiegama_init=mu_xiegama_eqv+beta_init*std_xiegama_eqv*cos_alpha1
+        Kic_init=mu_Kic_eqv+beta_init*std_Kic_eqv*cos_alpha2
+        ai_init=mu_ai_eqv+beta_init*std_ai_eqv*cos_alpha3
+        c_init=mu_c_eqv+beta_init*std_c_eqv*cos_alpha4
+        uxiegama_init=(xiegama_init-mu_xiegama_eqv)/std_xiegama_eqv
+        uKic_init=(Kic_init-mu_Kic_eqv)/std_Kic_eqv
+        uai_init=(ai_init-mu_ai_eqv)/std_ai_eqv
+        uc_init=(c_init-mu_c_eqv)/std_c_eqv
 
         ## loop from the new design point X2.
         ibxilong=0.001
@@ -133,7 +135,7 @@ class FatigueCrackGrowth():
             N_lim_value,xiegama_prime_value ,Kic_prime_value,ai_prime_value,c_prime_value=self.limitState_1stDeriv_value(Kic_init,xiegama_init,ai_init,c_init)
             N_lim_value,xiegama_prime_value ,Kic_prime_value,ai_prime_value,c_prime_value=float(N_lim_value),float(xiegama_prime_value),\
                                                                                       float(Kic_prime_value),float(ai_prime_value),float(c_prime_value)
-            std_g=np.sqrt(xiegama_prime_value**2+Kic_prime_value**2+ai_prime_value**2+c_prime_value**2)
+            std_g=np.sqrt((xiegama_prime_value*std_xiegama_eqv)**2+(Kic_prime_value*std_Kic_eqv)**2+(ai_prime_value*std_ai_eqv)**2+(c_prime_value*std_c_eqv)**2)
 
             beta_new=(g_new-xiegama_prime_value*std_xiegama_eqv*uxiegama_init-Kic_prime_value*std_Kic_eqv*uKic_init-
                       ai_prime_value*std_ai_eqv*uai_init-c_prime_value*std_c_eqv*uc_init)/std_g  # noted: the std value is updated.
@@ -164,6 +166,7 @@ class FatigueCrackGrowth():
             uai_init=uai_new
             uc_init=uc_new
             g_test=g_new
+
             i+=1
             print ("loop:{}".format(i))
             print ("g_new: {}".format(g_new))
@@ -173,6 +176,6 @@ class FatigueCrackGrowth():
         Pf=gauss.cdf(-beta_new)
         return (Pf,beta_new,residual)
 
-fatigueCrackGrowth=FatigueCrackGrowth()
+fatigueCrackGrowth=FatigueCrackGrowth(Nc=5334)
 Pf,beta_new,residual=fatigueCrackGrowth.FORM_HLRF()
-print (Pf)
+print (Pf,beta_new,residual)
